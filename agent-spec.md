@@ -86,8 +86,15 @@ Perguntas que guiam o preenchimento (uma por dimensão):
 -->
 **Quando se preenche:** no Laboratório 02, no sábado (encontro 2).
 
-[uma linha por dimensão: a classificação e a frase de
-justificativa — começando por observabilidade e determinismo]
+| Dimensão | Classificação | Justificativa | O que obriga no projeto |
+|---|---|---|---|
+| Observabilidade | Parcial | O histórico daquela máquina e a energia/instalação elétrica que a descrição não menciona mudam o parecer e não chegam na ordem | Estado interno; memória e contexto |
+| Número de agentes | Único | O técnico decide depois do parecer e o supervisor só audita; nenhum dos dois muda o acerto do parecer | Sem protocolo de comunicação |
+| Determinismo | Estocástico | A mesma leitura às vezes falha e às vezes não (falha aleatória, RNF), e a leitura da descrição livre por um modelo de linguagem varia entre execuções | Valor esperado, nova tentativa, tempo máximo |
+| Episódico ou sequencial | Episódico | Cada ordem é avaliada individualmente e errar uma não muda a próxima | Avaliação por conjunto de ordens independentes |
+| Estático ou dinâmico | Semidinâmico | A ordem não muda enquanto o agente decide, mas o técnico tem pouco tempo entre ordens e a resposta atrasada perde valor | Prazo de resposta e resposta parcial aceitável |
+| Discreto ou contínuo | Contínuo | Temperatura, rotação, torque e desgaste variam; só o parecer (3 níveis, 3 NRs, LOTO sim/não) é contabilizavel | Discretização declarada: 3 níveis de risco = 3 condutas |
+| Conhecido ou desconhecido | Conhecido | As NRs estão documentadas e os limiares de cada modo de falha estão descritos no dataset | Sem fase de exploração |
 
 ---
 
