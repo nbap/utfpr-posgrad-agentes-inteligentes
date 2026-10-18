@@ -191,5 +191,15 @@ Perguntas que guiam o preenchimento:
 -->
 **Quando se preenche:** no Laboratório 03, sábado à tarde (encontro 2).
 
-[os cinco componentes do seu subproblema: estado inicial,
-ações, transição, teste de objetivo, custo]
+**O que é busca:** definir a melhor ordem para checar os itens de segurança antes de liberar o trabalho (exemplo da OS-2026-0012: troca do rolamento do mancal dianteiro, com NR-12 e LOTO).
+
+| Componente | Neste domínio |
+|---|---|
+| **Estado inicial** | Nada checado e nenhuma pendência em aberto. |
+| **Ações** | Checar um item pendente ou resolver uma pendência da lista. |
+| **Transição** | Checar um item marca ele como concluído e abre novas tarefas necessárias (ex.: LOTO exige colocar cadeado e etiqueta); resolver uma tarefa a remove da lista. |
+| **Teste de objetivo** | Todos os 5 itens checados e nenhuma pendência sobrando. |
+| **Custo** | Tempo em minutos (tentar checar algo sem resolver as pendências antes custa o dobro de tempo por causa de retrabalho). |
+
+* **O estado do sistema** é apenas a foto atual: `(itens checados, pendências abertas)`.
+* **O que NÃO é busca:** calcular o nível de risco e definir quais NRs se aplicam são tarefas de classificação, não de montagem de sequência.
