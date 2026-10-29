@@ -203,3 +203,36 @@ Perguntas que guiam o preenchimento:
 
 * **O estado do sistema** é apenas a foto atual: `(itens checados, pendências abertas)`.
 * **O que NÃO é busca:** calcular o nível de risco e definir quais NRs se aplicam são tarefas de classificação, não de montagem de sequência.
+
+**Medições das buscas não informadas (Laboratório 04):**
+
+| Busca | Custo | Ações | Nós expandidos | Nós gerados | Prof. máx. | Segundos |
+|---|---:|---:|---:|---:|---:|---:|
+| largura | 35.0 | 7 | 201 | 204 | 7 | 0.0004 |
+| custo_uniforme | 28.0 | 7 | 201 | 204 | 7 | 0.0004 |
+| profundidade_limitada(limite=32) | 35.0 | 7 | 8 | 7 | 7 | 0.0 |
+| aprofundamento_iterativo(limite=32) | 35.0 | 7 | 260 | 619 | 7 | 0.0012 |
+
+**Conclusão:** sim, o custo uniforme achou um caminho mais barato que a
+largura: 28 contra 35 minutos, com as mesmas 7 ações. Todo caminho tem 7
+ações (5 itens + 2 pendências), então a largura não tem como distinguir
+um do outro e devolve o primeiro: checa os 5 itens e só depois fecha as
+pendências, pagando o retrabalho em dobro nos itens checados com
+pendência aberta (+7 min). O custo uniforme fecha cada pendência logo
+depois do item que a abriu e deixa o LOTO por último, pagando só os 28
+minutos de esforço base. A profundidade limitada e o aprofundamento
+iterativo também ficam em 35, porque só olham profundidade, não custo.
+
+**O limite da formulação:** o caminho mais barato é inseguro. Ele checa
+as proteções e a energia residual e drena o ar comprimido antes de
+bloquear e etiquetar a chave geral — na prática, o LOTO vem primeiro,
+porque sem ele a energia pode voltar durante a intervenção. A busca não
+errou: a formulação só tem custo de retrabalho e nenhuma regra de
+precedência, então nada obriga o LOTO a vir antes. O ótimo pelo custo
+não é o ótimo pela segurança enquanto essa precedência não estiver na
+formulação.
+
+**Ressalva de contagem:** a profundidade limitada é recursiva e não tem
+fronteira; nela, `nos_expandidos` conta entradas na recursão, sem
+repetidos. Os 8 nós dela não são comparáveis aos 201 da largura: parte da
+vantagem é diferença de contagem, não eficiência.

@@ -1,109 +1,204 @@
-"""Laboratório 03 — o seu subproblema formulado como espaço de estados.
+"""Laboratório 04 — as quatro buscas não informadas, medidas.
 
-Este módulo RODA desde o primeiro momento: traz os cinco componentes do
-protocolo implementados sobre dados de exemplo mínimos (um mini-diagnóstico
-de 3 verificações). Rode e confira as seis verificações verdes:
+Este esqueleto JÁ RODA: ele aponta para uma formulação do catálogo, roda as
+quatro buscas não informadas e imprime a tabela em Markdown, pronta para
+colar na entrega. O trabalho do caminho padrão é trocar a constante
+`FORMULACAO` para a SUA formulação do laboratório 03, executar, e ler a
+tabela — medir, não afirmar.
 
     python esqueleto.py
 
-Aí começa o seu trabalho — os TODOs dizem o que trocar pelos dados do SEU
-domínio. Caminho padrão: escolha um dos três subproblemas do catálogo
-(`comum/problemas/`) e troque os dados, como o `solucao.py` mostra, linha a
-linha. Desafio: formule o seu próprio subproblema daqui mesmo.
+No desafio, a fronteira e o conjunto de explorados são seus: preencha as
+duas funções marcadas com TODO (sem abrir `comum/busca.py` — o protocolo do
+slide 46 basta), troque `USAR_IMPLEMENTACAO_PROPRIA` para True e compare as
+suas linhas com as do motor. Trocar de caminho é livre, nos dois sentidos.
 
-A regra de ouro do slide 47: o estado descreve a SITUAÇÃO, nunca a história
-de como se chegou nela. Duas trilhas que chegam à mesma situação precisam
-ser o MESMO estado — o teste de sanidade avisa quando não são.
+A tabela sai com o custo e os segundos arredondados — 17.1, nunca
+17.099999999999998.
 """
 
 from __future__ import annotations
 
-# --------------------------------------------------------------------------
-# O esqueleto dos dados — TROQUE PELOS DO SEU DOMÍNIO (TODO 1)
-# --------------------------------------------------------------------------
-# O exemplo é um diagnóstico minúsculo: três verificações, cada uma com o
-# tempo que custa e o resultado fixo neste caso. As "essenciais" são as que
-# distinguem as hipóteses — o laudo não fecha sem elas.
+import importlib.util
+import sys
+import time
+from dataclasses import dataclass
+from pathlib import Path
 
-VERIFICACOES: tuple[tuple[str, float, bool, bool], ...] = (
-    # (nome da verificação, custo em minutos, positiva neste caso?, essencial?)
-    ("conferir a conexão de rede", 2.0, False, True),
-    ("reproduzir o erro numa máquina limpa", 5.0, True, True),
-    ("ler o changelog da última atualização", 1.0, False, False),
+# --------------------------------------------------------------------------
+# Configuração — é aqui que se troca. Nada de caminho embutido no meio do
+# código: uma constante, uma linha.
+# --------------------------------------------------------------------------
+FORMULACAO = "meu_problema.py:MEU_PROBLEMA"
+# Substitua pelo SEU módulo do laboratório 03, no formato "arquivo.py:NOME".
+# O exemplo aponta para o subproblema de diagnóstico do catálogo, instância
+# maior — os números dela estão no MEDICOES.md do motor (material do
+# professor) e no teste.py deste pacote.
+
+LIMITE = 32                     # o limite das duas buscas com limite
+
+USAR_IMPLEMENTACAO_PROPRIA = False   # desafio: True depois dos TODOs
+
+
+# --------------------------------------------------------------------------
+# O motor e a sua formulação
+# --------------------------------------------------------------------------
+
+_AQUI = Path(__file__).resolve().parent
+
+
+def pasta_do_comum() -> Path:
+    for pasta in (_AQUI, *_AQUI.parents):
+        if (pasta / "comum" / "busca.py").is_file():
+            return pasta / "comum"
+    raise FileNotFoundError(
+        "comum/busca.py não encontrado — extraia o pacote inteiro: a pasta "
+        "comum/ viaja junto do laboratório.")
+
+
+_pasta = str(pasta_do_comum())
+if _pasta not in sys.path:
+    sys.path.insert(0, _pasta)
+
+from busca import (  # noqa: E402
+    aprofundamento_iterativo,
+    busca_em_largura,
+    custo_uniforme,
+    profundidade_limitada,
 )
 
-ESSENCIAIS: tuple[str, ...] = tuple(
-    nome for nome, _, _, essencial in VERIFICACOES if essencial
-)
+
+def carregar_formulacao(especificacao: str):
+    """Carrega "arquivo.py:NOME" (o seu módulo) ou "modulo.sub:NOME" (o
+    catálogo). Uma constante no topo, uma linha para trocar."""
+    caminho, marcador, atributo = especificacao.rpartition(":")
+    if marcador and atributo.isidentifier() and ".py" in caminho:
+        spec = importlib.util.spec_from_file_location(
+            Path(caminho).stem, caminho)
+        modulo = importlib.util.module_from_spec(spec)
+        sys.modules.setdefault(Path(caminho).stem, modulo)
+        spec.loader.exec_module(modulo)  # type: ignore[union-attr]
+    else:
+        modulo = importlib.import_module(
+            especificacao.partition(":")[0])
+        atributo = especificacao.partition(":")[2] or "MAIOR"
+    return getattr(modulo, atributo)
 
 
-class MeuProblema:
-    """A formulação: em que ordem fazer as verificações do meu domínio.
+# --------------------------------------------------------------------------
+# Desafio — a sua fronteira e o seu conjunto de explorados
+# --------------------------------------------------------------------------
 
-    Os cinco componentes do protocolo (slide 46) estão implementados e o
-    módulo roda — o trabalho é substituir os dados de exemplo (TODO 1) e,
-    se a sua fatia de problema pedir, adaptar cada componente (TODOs 2 a 5).
-    O estado é o par (feitas, positivas), cada um como TUPLA ORDENADA:
-    estados iguais dão o mesmo hash, não importa a ordem em que as
-    verificações foram feitas.
+@dataclass
+class Resultado:
+    """O que a sua busca devolve — os mesmos campos do `Resultado` do motor
+    (slide 13). É o que a tabela imprime."""
+
+    caminho: list            # as ações da raiz ao objetivo
+    custo: float             # custo total do caminho
+    nos_expandidos: int      # retiradas da fronteira, repetidos inclusive
+    nos_gerados: int         # nós criados, repetidos inclusive
+    profundidade_maxima: int
+    segundos: float
+    encontrou: bool
+
+
+class No:
+    """Um nó da árvore de busca: o estado mais a trilha que levou a ele."""
+
+    def __init__(self, estado, pai, acao, custo, profundidade):
+        self.estado = estado
+        self.pai = pai
+        self.acao = acao
+        self.custo = custo
+        self.profundidade = profundidade
+
+    def caminho(self) -> list:
+        passos: list = []
+        atual = self
+        while atual is not None and atual.acao is not None:
+            passos.append(atual.acao)
+            atual = atual.pai
+        passos.reverse()
+        return passos
+
+
+def minha_busca_em_largura(problema) -> Resultado:
+    """TODO (desafio): a busca em largura, a partir do protocolo.
+
+    O que a definição pede (slides 14 e 12): fronteira em FILA
+    (`collections.deque`, `popleft()`), conjunto de EXPLORADOS que impede
+    reexpandir estado, e teste de objetivo NA RETIRADA da fronteira.
+    `No` e `Resultado` acima já dão a estrutura; o laço é seu.
+    Sem abrir `comum/busca.py` — quem abre, perde o laboratório e não
+    ganha nada, porque a análise escrita é o que vale nota.
     """
-
-    def __init__(self) -> None:
-        self._por_nome = {nome: (custo, positivo)
-                          for nome, custo, positivo, _ in VERIFICACOES}
-        self.estado_inicial: tuple[tuple[str, ...], tuple[str, ...]] = ((), ())
-
-    def acoes(self, estado: tuple[tuple[str, ...], tuple[str, ...]]) -> list[str]:
-        # TODO 2 (opcional): a lista de ações do SEU domínio, numa ordem
-        # estável. Aqui: fazer qualquer verificação ainda não feita.
-        feitas, _ = estado
-        return [nome for nome in self._por_nome if nome not in feitas]
-
-    def transicao(
-        self, estado: tuple[tuple[str, ...], tuple[str, ...]], acao: str,
-    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        # TODO 3 (opcional): o estado que resulta da ação. O exemplo soma a
-        # verificação às feitas e, se positiva, às positivas — e ORDENA, para
-        # a situação (não o caminho até ela) ser o estado.
-        feitas, positivas = estado
-        _, positivo = self._por_nome[acao]
-        novas_feitas = tuple(sorted((*feitas, acao)))
-        if positivo:
-            return novas_feitas, tuple(sorted((*positivas, acao)))
-        return novas_feitas, positivas
-
-    def objetivo(self, estado: tuple[tuple[str, ...], tuple[str, ...]]) -> bool:
-        # TODO 4 (opcional): o teste de objetivo do SEU domínio — comece por
-        # ele quando formular o seu; é ele que define o que precisa estar no
-        # estado. Aqui: todas as essenciais verificadas.
-        feitas, _ = estado
-        return set(ESSENCIAIS).issubset(feitas)
-
-    def custo(
-        self,
-        estado: tuple[tuple[str, ...], tuple[str, ...]],
-        acao: str,
-        estado_seguinte: tuple[tuple[str, ...], tuple[str, ...]],
-    ) -> float:
-        # TODO 5 (opcional): o custo da ação — tempo, dinheiro, esforço,
-        # latência. Custo 1.0 para toda ação é formulação válida, e é um
-        # começo honesto. Nunca devolva negativo.
-        custo_acao, _ = self._por_nome[acao]
-        return custo_acao
+    raise NotImplementedError(
+        "TODO (desafio): implemente a sua busca em largura e troque "
+        "USAR_IMPLEMENTACAO_PROPRIA para True")
 
 
-MEU_PROBLEMA = MeuProblema()
+def meu_custo_uniforme(problema) -> Resultado:
+    """TODO (desafio): o custo uniforme, a partir do protocolo.
+
+    A diferença da largura cabe numa linha: a fronteira é um HEAP ordenado
+    pelo custo acumulado (`heapq`, com um contador de desempate — dois nós
+    de mesmo custo saem por ordem de criação). O teste de objetivo continua
+    na retirada — é dele que vem a otimalidade (slide 15).
+    """
+    raise NotImplementedError(
+        "TODO (desafio): implemente o seu custo uniforme e troque "
+        "USAR_IMPLEMENTACAO_PROPRIA para True")
+
+
+# --------------------------------------------------------------------------
+# A tabela
+# --------------------------------------------------------------------------
+
+CABECALHO = (
+    "| Busca | Custo | Ações | Nós expandidos | Nós gerados | Prof. máx. | Segundos |\n"
+    "|---|---:|---:|---:|---:|---:|---:|\n"
+)
+
+
+def linha(nome: str, resultado) -> str:
+    return (
+        f"| {nome} | {round(resultado.custo, 4)} | {len(resultado.caminho)} "
+        f"| {resultado.nos_expandidos} | {resultado.nos_gerados} "
+        f"| {resultado.profundidade_maxima} | {round(resultado.segundos, 4)} |\n"
+    )
+
+
+def tabela(problema) -> str:
+    """As quatro buscas sobre o problema, em Markdown pronto para colar."""
+    inicio = time.perf_counter()
+    textos = [CABECALHO]
+    textos.append(linha("largura", busca_em_largura(problema)))
+    textos.append(linha("custo_uniforme", custo_uniforme(problema)))
+    textos.append(linha(
+        f"profundidade_limitada(limite={LIMITE})",
+        profundidade_limitada(problema, LIMITE)))
+    textos.append(linha(
+        f"aprofundamento_iterativo(limite={LIMITE})",
+        aprofundamento_iterativo(problema, LIMITE)))
+    if USAR_IMPLEMENTACAO_PROPRIA:
+        textos.append(linha("minha_largura", minha_busca_em_largura(problema)))
+        textos.append(linha("meu_custo_uniforme", meu_custo_uniforme(problema)))
+    total = time.perf_counter() - inicio
+    textos.append(
+        f"\nCusto e segundos arredondados. Forma: `comum.busca.comparar()` "
+        f"em {round(total, 4)} s.\n")
+    return "".join(textos)
 
 
 if __name__ == "__main__":
-    import importlib.util
-    import sys
-    from pathlib import Path
-
-    teste = importlib.util.spec_from_file_location(
-        "verificar-formulacao",
-        Path(__file__).resolve().parent / "verificar-formulacao.py")
-    modulo = importlib.util.module_from_spec(teste)
-    sys.modules["verificar-formulacao"] = modulo
-    teste.loader.exec_module(modulo)
-    raise SystemExit(modulo.main([str(Path(__file__)) + ":MEU_PROBLEMA"]))
+    problema = carregar_formulacao(FORMULACAO)
+    print(f"Formulação: {FORMULACAO}\n")
+    print(tabela(problema))
+    print("Lembre a ressalva de contagem (slide 20): a profundidade limitada "
+          "é recursiva e não tem fronteira — nela, `nos_expandidos` conta "
+          "entradas na recursão, sem repetidos. Parte da vantagem aparente "
+          "dela é diferença de contagem. Registre isso na análise.")
+    print(f"\nPróximo passo: cole a tabela na entrega e responda — alguma "
+          f"busca achou caminho mais barato que a largura? Em {FORMULACAO.split(':')[0]}"
+          ", por quê?")

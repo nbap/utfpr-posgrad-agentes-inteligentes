@@ -1,22 +1,28 @@
-"""Testes do Laboratório 03 — a prova de que a formulação está de pé.
+"""Testes do Laboratório 04 — a prova de que a tabela está certa.
 
 Como usar (da pasta do laboratório):
     python -m pytest teste.py -q
 
-O que é testado:
-  1. a SOLUÇÃO passa nas seis verificações do teste de sanidade;
-  2. os TRÊS subproblemas do catálogo (instâncias pequenas e maiores)
-     passam nas seis — o teste de sanidade não pode acusar defeito em
-     formulação que se sabe boa;
-  3. cada um dos seis defeitos clássicos de formulação ACENDE a verificação
-     correspondente — um teste de sanidade que nunca acusa não testa nada;
-  4. o carregador `arquivo.py:ATRIBUTO` acha o problema certo.
+Três famílias de teste:
+
+  1. GABARITO — as quatro buscas sobre as três instâncias MAIOR do
+     catálogo têm que reproduzir os números de `comum/MEDICOES.md`
+     (custo, ações, expandidos, gerados, profundidade máxima). São
+     determinísticos: se divergirem, algo mudou no motor ou no catálogo —
+     pare e reporte, não "conserte" a tabela.
+  2. A SUA FORMULAÇÃO (a constante `FORMULACAO` do `esqueleto.py`) — as
+     quatro buscas encontram objetivo, e o custo uniforme nunca perde da
+     largura em custo (slide 22: esse resultado é defeito de formulação —
+     custo negativo ou transição que não é função).
+  3. DESAFIO — se `USAR_IMPLEMENTACAO_PROPRIA` estiver em True, as suas
+     duas buscas têm que bater com o motor nos três subproblemas do
+     catálogo E na formulação apontada: mesmo custo, mesmo número de
+     ações. No caminho padrão estes testes são pulados, sem penalidade.
 """
 
 from __future__ import annotations
 
 import importlib.util
-import random
 import sys
 from pathlib import Path
 
@@ -38,238 +44,154 @@ _pasta = str(_pasta_do_comum())
 if _pasta not in sys.path:
     sys.path.insert(0, _pasta)
 
-_especificacao = importlib.util.spec_from_file_location(
-    "verificar-formulacao", _AQUI / "verificar-formulacao.py")
-vf = importlib.util.module_from_spec(_especificacao)
-sys.modules["verificar-formulacao"] = vf
-_especificacao.loader.exec_module(vf)  # type: ignore[union-attr]
-
+from busca import (  # noqa: E402
+    aprofundamento_iterativo,
+    busca_em_largura,
+    comparar,
+    custo_uniforme,
+    profundidade_limitada,
+)
 from problemas import conformidade, consultas, diagnostico  # noqa: E402
 
-
-def _carregar_solucao():
-    """A SOLUÇÃO não viaja no pacote do aluno (regra do empacotador) — o
-    teste dela só roda na árvore de trabalho, onde o arquivo existe."""
-    caminho = _AQUI / "solucao.py"
-    if not caminho.is_file():
-        pytest.skip("solucao.py não está aqui — teste de solução roda na "
-                    "árvore de trabalho, não no pacote")
-    spec = importlib.util.spec_from_file_location("solucao", caminho)
-    modulo = importlib.util.module_from_spec(spec)
-    sys.modules["solucao"] = modulo
-    spec.loader.exec_module(modulo)  # type: ignore[union-attr]
-    return modulo
-
-
-def _seis_verdes(problema) -> None:
-    relatos = vf.verificar(problema)
-    vermelhas = [a for a in relatos if not a.ok and not a.aviso]
-    amarelas = [a for a in relatos if a.aviso]
-    assert not vermelhas, [a.mensagem for a in vermelhas]
-    assert not amarelas, [a.mensagem for a in amarelas]
-    assert len(relatos) == 6
-
-
-def test_solucao_passa_nas_seis_verificacoes():
-    _seis_verdes(_carregar_solucao().PEDIDOS)
-
-
-def test_os_tres_do_catalogo_passam_nas_seis():
-    for modulo in (diagnostico, consultas, conformidade):
-        _seis_verdes(modulo.PEQUENA)
-        _seis_verdes(modulo.MAIOR)
-
-
-# --- os seis defeitos, um por verificação ---------------------------------
-
-
-class _GuardaCaminho:
-    """O erro do slide 47: o estado é a trilha, ordenada ou não... aqui não."""
-
-    def __init__(self) -> None:
-        self.estado_inicial = ()
-
-    def acoes(self, s):
-        return [a for a in ("p", "q", "r") if a not in s]
-
-    def transicao(self, s, a):
-        return s + (a,)          # sem ordenar: dois caminhos, estados distintos
-
-    def objetivo(self, s):
-        return {"p", "q"} <= set(s)
-
-    def custo(self, s, a, t):
-        return 1.0
-
-
-class _CustoNegativo:
-    def __init__(self) -> None:
-        self.estado_inicial = 0
-
-    def acoes(self, s):
-        return ["andar"] if s < 3 else []
-
-    def transicao(self, s, a):
-        return s + 1
-
-    def objetivo(self, s):
-        return s >= 3
-
-    def custo(self, s, a, t):
-        return -2.0
-
-
-class _TransicaoNaoFuncao:
-    def __init__(self) -> None:
-        self.estado_inicial = 0
-
-    def acoes(self, s):
-        return ["moeda"]
-
-    def transicao(self, s, a):
-        return s + 1 if random.random() < 0.9 else s + 5
-
-    def objetivo(self, s):
-        return s >= 5
-
-    def custo(self, s, a, t):
-        return 1.0
-
-
-class _AcoesInstaveis:
-    def __init__(self) -> None:
-        self.estado_inicial = 0
-
-    def acoes(self, s):
-        return random.sample(["p", "q", "r"], 3)
-
-    def transicao(self, s, a):
-        return s + 1
-
-    def objetivo(self, s):
-        return s >= 3
-
-    def custo(self, s, a, t):
-        return 1.0
-
-
-class _ObjetivoInatingivel:
-    def __init__(self) -> None:
-        self.estado_inicial = 0
-
-    def acoes(self, s):
-        return ["andar"] if s < 2 else []
-
-    def transicao(self, s, a):
-        return s + 1
-
-    def objetivo(self, s):
-        return s >= 99
-
-    def custo(self, s, a, t):
-        return 1.0
-
-
-class _EstadoNaoHashable:
-    def __init__(self) -> None:
-        self.estado_inicial = []
-
-    def acoes(self, s):
-        return ["p", "q"]
-
-    def transicao(self, s, a):
-        return s + [a]
-
-    def objetivo(self, s):
-        return len(s) >= 2
-
-    def custo(self, s, a, t):
-        return 1.0
-
-
-def _relato(problema, numero: int):
-    return vf.verificar(problema)[numero - 1]
-
-
-def test_verificacao_6_acusa_o_estado_que_guarda_caminho():
-    relato = _relato(_GuardaCaminho(), 6)
-    assert relato.aviso, "o estado-trilha tem que acender o aviso da 6"
-    assert "situação" in relato.mensagem
-
-
-def test_verificacao_4_acusa_o_custo_negativo():
-    relato = _relato(_CustoNegativo(), 4)
-    assert not relato.ok and not relato.aviso
-    assert "otimalidade" in relato.mensagem
-
-
-def test_verificacao_2_acusa_a_transicao_que_nao_e_funcao():
-    random.seed(1)
-    relato = _relato(_TransicaoNaoFuncao(), 2)
-    assert not relato.ok and not relato.aviso
-    assert "determinística" in relato.mensagem
-
-
-def test_verificacao_3_acusa_as_acoes_instaveis():
-    random.seed(7)
-    relato = _relato(_AcoesInstaveis(), 3)
-    assert not relato.ok and not relato.aviso
-    assert "ordem estável" in relato.mensagem
-
-
-def test_verificacao_5_acusa_o_objetivo_inatingivel():
-    relato = _relato(_ObjetivoInatingivel(), 5)
-    assert not relato.ok and not relato.aviso
-    assert "vazia" in relato.mensagem
-
-
-def test_verificacao_1_acusa_o_estado_sem_hash():
-    relato = _relato(_EstadoNaoHashable(), 1)
-    assert not relato.ok and not relato.aviso
-    assert "tuple/frozenset" in relato.mensagem
-
-
-# --- o carregador ----------------------------------------------------------
-
-def test_carregador_acha_por_arquivo_e_atributo():
-    # o carregador re-executa o arquivo: é OUTRA instância, do mesmo tipo
-    _carregar_solucao()
-    problema = vf.carregar_problema(str(_AQUI / "solucao.py") + ":PEDIDOS")
-    assert type(problema).__name__ == "DiagnosticoPedidos"
-    _seis_verdes(problema)
-
-
-def test_carregador_acha_o_unico_candidato(tmp_path):
-    modulo = tmp_path / "unico.py"
-    modulo.write_text(
-        "class SoTemUm:\n"
-        "    estado_inicial = 0\n"
-        "    def acoes(self, s):\n        return []\n"
-        "    def transicao(self, s, a):\n        return s\n"
-        "    def objetivo(self, s):\n        return True\n"
-        "    def custo(self, s, a, t):\n        return 0.0\n",
-        encoding="utf-8")
-    problema = vf.carregar_problema(str(modulo))
-    assert (isinstance(problema, type) and problema.__name__ == "SoTemUm")
-    relatos = vf.verificar(problema())
-    assert all(r.ok for r in relatos)
-
-
-def test_carregador_recusa_ambiguidade_com_mensagem(tmp_path):
-    modulo = tmp_path / "dois.py"
-    modulo.write_text(
-        "class Base:\n"
-        "    estado_inicial = 0\n"
-        "    def acoes(self, s):\n        return []\n"
-        "    def transicao(self, s, a):\n        return s\n"
-        "    def objetivo(self, s):\n        return True\n"
-        "    def custo(self, s, a, t):\n        return 0.0\n"
-        "UM = Base()\n"
-        "OUTRO = Base()\n",
-        encoding="utf-8")
-    try:
-        vf.carregar_problema(str(modulo))
-    except ValueError as erro:
-        assert "aponte o atributo" in str(erro)
-    else:
-        raise AssertionError("dois candidatos sem atributo devia falhar")
+_spec_esqueleto = importlib.util.spec_from_file_location(
+    "esqueleto", _AQUI / "esqueleto.py")
+esqueleto = importlib.util.module_from_spec(_spec_esqueleto)
+sys.modules["esqueleto"] = esqueleto
+_spec_esqueleto.loader.exec_module(esqueleto)  # type: ignore[union-attr]
+
+LIMITE = esqueleto.LIMITE
+
+# O gabarito de `comum/MEDICOES.md` (30/08/2026), instâncias MAIOR:
+# problema -> busca -> (custo, ações, expandidos, gerados, prof. máx.)
+GABARITO = {
+    "diagnostico": {
+        "largura": (20.0, 5, 2786, 6744, 5),
+        "custo_uniforme": (20.0, 5, 550, 1954, 6),
+        "profundidade_limitada": (20.0, 5, 6, 5, 5),
+        "aprofundamento_iterativo": (20.0, 5, 1192, 3749, 5),
+    },
+    "consultas": {
+        "largura": (20.0, 1, 11, 140, 2),
+        "custo_uniforme": (17.1, 6, 1488, 2450, 7),
+        "profundidade_limitada": (17.6, 7, 8, 28, 7),
+        "aprofundamento_iterativo": (20.0, 1, 12, 10, 1),
+    },
+    "conformidade": {
+        "largura": (44.0, 14, 20729, 20736, 14),
+        "custo_uniforme": (30.0, 14, 20723, 20736, 14),
+        "profundidade_limitada": (44.0, 14, 15, 14, 14),
+        "aprofundamento_iterativo": (44.0, 14, 27231, 134798, 14),
+    },
+}
+NOMES_DE_BUSCA = {
+    "largura": "largura",
+    "custo_uniforme": "custo_uniforme",
+    "profundidade_limitada": f"profundidade_limitada(limite={LIMITE})",
+    "aprofundamento_iterativo": f"aprofundamento_iterativo(limite={LIMITE})",
+}
+
+MAIORES = {
+    "diagnostico": diagnostico.MAIOR,
+    "consultas": consultas.MAIOR,
+    "conformidade": conformidade.MAIOR,
+}
+
+
+def _medir(problema, busca):
+    return busca(problema)
+
+
+# --- 1. o gabarito ----------------------------------------------------------
+
+@pytest.mark.parametrize("nome_problema", sorted(GABARITO))
+def test_gabarito_das_instancias_maior(nome_problema):
+    problema = MAIORES[nome_problema]
+    medidos = {
+        "largura": busca_em_largura(problema),
+        "custo_uniforme": custo_uniforme(problema),
+        "profundidade_limitada": profundidade_limitada(problema, LIMITE),
+        "aprofundamento_iterativo": aprofundamento_iterativo(problema, LIMITE),
+    }
+    for nome, esperado in GABARITO[nome_problema].items():
+        r = medidos[nome]
+        obtido = (round(r.custo, 4), len(r.caminho), r.nos_expandidos,
+                  r.nos_gerados, r.profundidade_maxima)
+        assert obtido == esperado, (
+            f"{nome_problema}.{nome}: obtido {obtido}, gabarito {esperado} "
+            "(comum/MEDICOES.md). Divergência é defeito no motor ou no "
+            "catálogo — reporte, não ajuste a tabela.")
+
+
+# --- 2. a formulação apontada no esqueleto ----------------------------------
+
+def _problema_da_formulacao():
+    return esqueleto.carregar_formulacao(esqueleto.FORMULACAO)
+
+
+def test_as_quatro_buscas_encontram_o_objetivo_da_formulacao():
+    problema = _problema_da_formulacao()
+    for busca in (busca_em_largura, custo_uniforme,
+                  lambda p: profundidade_limitada(p, LIMITE),
+                  lambda p: aprofundamento_iterativo(p, LIMITE)):
+        r = busca(problema)
+        assert r.encontrou, (
+            f"{busca} não encontrou objetivo em {esqueleto.FORMULACAO}. "
+            "Rode o teste de sanidade do laboratório 03 sobre a formulação: "
+            "objetivo inatingível é formulação vazia.")
+
+
+def test_custo_uniforme_nunca_perde_da_largura_em_custo():
+    problema = _problema_da_formulacao()
+    largura = busca_em_largura(problema)
+    uniforme = custo_uniforme(problema)
+    assert uniforme.custo <= largura.custo + 1e-9, (
+        f"custo uniforme devolveu {uniforme.custo} e a largura {largura.custo}. "
+        "Resultado impossível com formulação correta (slide 22: é defeito, "
+        "não resultado — quase sempre custo negativo ou transição que não "
+        "é função).")
+
+
+def test_nenhum_custo_da_tabela_traz_float_sujo():
+    problema = _problema_da_formulacao()
+    for linha_dados in comparar(problema, limite_maximo=LIMITE):
+        texto = str(linha_dados["custo"])
+        assert "999999" not in texto, (
+            f"a tabela imprime {texto} — o arredondamento do comparar() "
+            "deveria ter livrado o float sujo")
+
+
+# --- 3. o desafio ------------------------------------------------------------
+
+@pytest.mark.skipif(
+    not esqueleto.USAR_IMPLEMENTACAO_PROPRIA,
+    reason="caminho padrão: as buscas próprias não foram implementadas "
+           "(desafio). Preencha as TODOs do esqueleto.py e troque a "
+           "constante para rodar esta família de testes.")
+@pytest.mark.parametrize("nome_problema", sorted(MAIORES))
+def test_minhas_buscas_batem_com_o_motor(nome_problema):
+    problema = MAIORES[nome_problema]
+    for minha, do_motor in (
+        (esqueleto.minha_busca_em_largura, busca_em_largura),
+        (esqueleto.meu_custo_uniforme, custo_uniforme),
+    ):
+        meu = minha(problema)
+        motor = do_motor(problema)
+        assert round(meu.custo, 4) == round(motor.custo, 4), (
+            f"{nome_problema}: meu custo {meu.custo} ≠ motor {motor.custo}")
+        assert len(meu.caminho) == len(motor.caminho), (
+            f"{nome_problema}: {len(meu.caminho)} ações contra "
+            f"{len(motor.caminho)} do motor — a minha busca não é a mesma")
+
+
+@pytest.mark.skipif(
+    not esqueleto.USAR_IMPLEMENTACAO_PROPRIA,
+    reason="desafio não ativado — ver a família acima.")
+def test_minhas_buscas_batem_na_formulacao_apontada():
+    problema = _problema_da_formulacao()
+    for minha, do_motor in (
+        (esqueleto.minha_busca_em_largura, busca_em_largura),
+        (esqueleto.meu_custo_uniforme, custo_uniforme),
+    ):
+        meu, motor = minha(problema), do_motor(problema)
+        assert meu.encontrou and motor.encontrou
+        assert round(meu.custo, 4) == round(motor.custo, 4)
