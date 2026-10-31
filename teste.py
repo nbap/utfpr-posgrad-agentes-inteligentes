@@ -1,23 +1,25 @@
-"""Testes do Laboratório 04 — a prova de que a tabela está certa.
+"""Testes do Laboratório 05 — as três verificações da heurística.
 
 Como usar (da pasta do laboratório):
     python -m pytest teste.py -q
 
-Três famílias de teste:
+São as verificações do motor de busca (B02) aplicadas às heurísticas:
 
-  1. GABARITO — as quatro buscas sobre as três instâncias MAIOR do
-     catálogo têm que reproduzir os números de `comum/MEDICOES.md`
-     (custo, ações, expandidos, gerados, profundidade máxima). São
-     determinísticos: se divergirem, algo mudou no motor ou no catálogo —
-     pare e reporte, não "conserte" a tabela.
-  2. A SUA FORMULAÇÃO (a constante `FORMULACAO` do `esqueleto.py`) — as
-     quatro buscas encontram objetivo, e o custo uniforme nunca perde da
-     largura em custo (slide 22: esse resultado é defeito de formulação —
-     custo negativo ou transição que não é função).
-  3. DESAFIO — se `USAR_IMPLEMENTACAO_PROPRIA` estiver em True, as suas
-     duas buscas têm que bater com o motor nos três subproblemas do
-     catálogo E na formulação apontada: mesmo custo, mesmo número de
-     ações. No caminho padrão estes testes são pulados, sem penalidade.
+  (a) a admissível vale ZERO em todo estado objetivo;
+  (b) o A* com a admissível devolve o MESMO CUSTO que o custo uniforme
+      (é a admissibilidade que garante isso — slide 26);
+  (c) o A* com a admissível expande MENOS nós que o custo uniforme na
+      instância maior (é a economia que o laboratório mede).
+
+As três rodam sobre cada instância do catálogo com a heurística DELA, e
+sobre a formulação apontada no `esqueleto.py` com a heurística DELE — no
+desafio, é aí que a SUA heurística é provada. Mais duas famílias: o
+gabarito numérico de `comum/MEDICOES.md` e o contraste da inadmissível
+(devolve caminho mais caro que o ótimo em pelo menos um problema, e
+superestima em algum estado).
+
+Se a (c) falhar para a sua heurística, o slide 36 tem o diagnóstico:
+estimativa fraca — volte ao relaxamento e remova uma restrição menor.
 """
 
 from __future__ import annotations
@@ -25,8 +27,6 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
-
-import pytest
 
 _AQUI = Path(__file__).resolve().parent
 
@@ -44,154 +44,187 @@ _pasta = str(_pasta_do_comum())
 if _pasta not in sys.path:
     sys.path.insert(0, _pasta)
 
-from busca import (  # noqa: E402
-    aprofundamento_iterativo,
-    busca_em_largura,
-    comparar,
-    custo_uniforme,
-    profundidade_limitada,
-)
+from busca import a_estrela, busca_gulosa, custo_uniforme  # noqa: E402
 from problemas import conformidade, consultas, diagnostico  # noqa: E402
 
-_spec_esqueleto = importlib.util.spec_from_file_location(
-    "esqueleto", _AQUI / "esqueleto.py")
-esqueleto = importlib.util.module_from_spec(_spec_esqueleto)
+_spec = importlib.util.spec_from_file_location("esqueleto", _AQUI / "esqueleto.py")
+esqueleto = importlib.util.module_from_spec(_spec)
 sys.modules["esqueleto"] = esqueleto
-_spec_esqueleto.loader.exec_module(esqueleto)  # type: ignore[union-attr]
+_spec.loader.exec_module(esqueleto)  # type: ignore[union-attr]
 
-LIMITE = esqueleto.LIMITE
+CATALOGO = {
+    "diagnostico": diagnostico,
+    "consultas": consultas,
+    "conformidade": conformidade,
+}
+MAIORES = [m.MAIOR for m in CATALOGO.values()]
+PEQUENAS = [m.PEQUENA for m in CATALOGO.values()]
 
-# O gabarito de `comum/MEDICOES.md` (30/08/2026), instâncias MAIOR:
-# problema -> busca -> (custo, ações, expandidos, gerados, prof. máx.)
+# Gabarito de MEDICOES.md (30/08/2026), instâncias MAIOR:
+# (problema, busca) → (custo, ações, expandidos, gerados, prof. máx.)
 GABARITO = {
-    "diagnostico": {
-        "largura": (20.0, 5, 2786, 6744, 5),
-        "custo_uniforme": (20.0, 5, 550, 1954, 6),
-        "profundidade_limitada": (20.0, 5, 6, 5, 5),
-        "aprofundamento_iterativo": (20.0, 5, 1192, 3749, 5),
-    },
-    "consultas": {
-        "largura": (20.0, 1, 11, 140, 2),
-        "custo_uniforme": (17.1, 6, 1488, 2450, 7),
-        "profundidade_limitada": (17.6, 7, 8, 28, 7),
-        "aprofundamento_iterativo": (20.0, 1, 12, 10, 1),
-    },
-    "conformidade": {
-        "largura": (44.0, 14, 20729, 20736, 14),
-        "custo_uniforme": (30.0, 14, 20723, 20736, 14),
-        "profundidade_limitada": (44.0, 14, 15, 14, 14),
-        "aprofundamento_iterativo": (44.0, 14, 27231, 134798, 14),
-    },
-}
-NOMES_DE_BUSCA = {
-    "largura": "largura",
-    "custo_uniforme": "custo_uniforme",
-    "profundidade_limitada": f"profundidade_limitada(limite={LIMITE})",
-    "aprofundamento_iterativo": f"aprofundamento_iterativo(limite={LIMITE})",
-}
-
-MAIORES = {
-    "diagnostico": diagnostico.MAIOR,
-    "consultas": consultas.MAIOR,
-    "conformidade": conformidade.MAIOR,
+    ("diagnostico", "gulosa[admissivel]"): (20.0, 5, 6, 50, 5),
+    ("diagnostico", "a_estrela[admissivel]"): (20.0, 5, 77, 297, 5),
+    ("diagnostico", "gulosa[inadmissivel]"): (83.0, 11, 12, 77, 11),
+    ("diagnostico", "a_estrela[inadmissivel]"): (77.0, 10, 11, 75, 10),
+    ("consultas", "gulosa[admissivel]"): (20.0, 1, 2, 14, 1),
+    ("consultas", "a_estrela[admissivel]"): (17.1, 6, 1307, 2338, 6),
+    ("consultas", "gulosa[inadmissivel]"): (20.0, 1, 2, 14, 1),
+    ("consultas", "a_estrela[inadmissivel]"): (20.0, 1, 2, 14, 1),
+    ("conformidade", "gulosa[admissivel]"): (30.0, 14, 15, 60, 14),
+    ("conformidade", "a_estrela[admissivel]"): (30.0, 14, 13209, 16560, 14),
+    ("conformidade", "gulosa[inadmissivel]"): (30.0, 14, 15, 60, 14),
+    ("conformidade", "a_estrela[inadmissivel]"): (30.0, 14, 491, 1084, 14),
 }
 
 
-def _medir(problema, busca):
-    return busca(problema)
+def _h_admissivel_do(problema):
+    """A heurística admissível DAQUELA instância — cada módulo do catálogo
+    traz a sua; só quem não traz delega ao esqueleto."""
+    if hasattr(problema, "heuristica_admissivel"):
+        return problema.heuristica_admissivel
+    return esqueleto.heuristica_admissivel
 
 
-# --- 1. o gabarito ----------------------------------------------------------
+def _h_inadmissivel_do(problema):
+    if hasattr(problema, "heuristica_inadmissivel"):
+        return problema.heuristica_inadmissivel
+    return esqueleto.heuristica_inadmissivel
 
-@pytest.mark.parametrize("nome_problema", sorted(GABARITO))
-def test_gabarito_das_instancias_maior(nome_problema):
-    problema = MAIORES[nome_problema]
-    medidos = {
-        "largura": busca_em_largura(problema),
-        "custo_uniforme": custo_uniforme(problema),
-        "profundidade_limitada": profundidade_limitada(problema, LIMITE),
-        "aprofundamento_iterativo": aprofundamento_iterativo(problema, LIMITE),
-    }
-    for nome, esperado in GABARITO[nome_problema].items():
-        r = medidos[nome]
+
+def _objetivos_alcancaveis(problema, teto: int = 5_000) -> list:
+    """Uma amostra dos estados objetivos alcançáveis, para o teste (a)."""
+    vistos = {problema.estado_inicial}
+    fila = [problema.estado_inicial]
+    objetivos = []
+    while fila and len(vistos) < teto:
+        atual = fila.pop()
+        if problema.objetivo(atual):
+            objetivos.append(atual)
+            if len(objetivos) >= 20:
+                break
+        for acao in problema.acoes(atual):
+            seguinte = problema.transicao(atual, acao)
+            if seguinte not in vistos:
+                vistos.add(seguinte)
+                fila.append(seguinte)
+    return objetivos
+
+
+# --- as três verificações ---------------------------------------------------
+
+def test_a_h_admissivel_valida_zero_em_todo_estado_objetivo():
+    for problema in PEQUENAS + MAIORES + [esqueleto._problema()]:
+        h = _h_admissivel_do(problema)
+        for objetivo in _objetivos_alcancaveis(problema):
+            valor = h(objetivo)
+            assert abs(valor) < 1e-9, (
+                f"h({objetivo!r}) = {valor}, devia ser 0. Toda estimativa "
+                "tem de zerar no objetivo — sem isso nem a admissibilidade "
+                "sobrevive (slide 25).")
+
+
+def test_a_estrela_com_a_admissivel_devolve_o_custo_otimo():
+    for problema in PEQUENAS + MAIORES + [esqueleto._problema()]:
+        uniforme = custo_uniforme(problema)
+        informada = a_estrela(problema, _h_admissivel_do(problema))
+        assert informada.encontrou and uniforme.encontrou
+        assert round(informada.custo, 4) == round(uniforme.custo, 4), (
+            "o A* com a heurística admissível devolveu caminho mais caro "
+            "que o custo uniforme — a heurística superestima (slide 26: "
+            "errar para mais, uma vez que seja, derruba a garantia).")
+
+
+def test_a_estrela_com_a_admissivel_expande_menos_na_instancia_maior():
+    for problema in MAIORES:
+        uniforme = custo_uniforme(problema)
+        informada = a_estrela(problema, _h_admissivel_do(problema))
+        assert informada.nos_expandidos < uniforme.nos_expandidos, (
+            f"o A* expandiu {informada.nos_expandidos} contra "
+            f"{uniforme.nos_expandidos} do custo uniforme — a heurística "
+            "está fraca (slide 36). Volte ao relaxamento e remova uma "
+            "restrição menor: a estimativa sobe sem superestimar.")
+
+
+# --- o gabarito numérico do catálogo ----------------------------------------
+
+def test_gabarito_das_linhas_informadas_nas_instancias_maior():
+    for (nome, nome_busca), esperado in GABARITO.items():
+        problema = CATALOGO[nome].MAIOR
+        # "inadmissivel" CONTÉM "admissivel" — o corte é pelo rótulo inteiro
+        admissivel = nome_busca.endswith("[admissivel]")
+        h = (_h_admissivel_do(problema) if admissivel
+             else _h_inadmissivel_do(problema))
+        r = (busca_gulosa(problema, h) if "gulosa" in nome_busca
+             else a_estrela(problema, h))
         obtido = (round(r.custo, 4), len(r.caminho), r.nos_expandidos,
                   r.nos_gerados, r.profundidade_maxima)
         assert obtido == esperado, (
-            f"{nome_problema}.{nome}: obtido {obtido}, gabarito {esperado} "
-            "(comum/MEDICOES.md). Divergência é defeito no motor ou no "
-            "catálogo — reporte, não ajuste a tabela.")
+            f"{nome}/{nome_busca}: obtido {obtido}, gabarito {esperado} "
+            "(comum/MEDICOES.md). Reporte — não ajuste a tabela.")
 
 
-# --- 2. a formulação apontada no esqueleto ----------------------------------
+# --- o contraste da inadmissível --------------------------------------------
 
-def _problema_da_formulacao():
-    return esqueleto.carregar_formulacao(esqueleto.FORMULACAO)
-
-
-def test_as_quatro_buscas_encontram_o_objetivo_da_formulacao():
-    problema = _problema_da_formulacao()
-    for busca in (busca_em_largura, custo_uniforme,
-                  lambda p: profundidade_limitada(p, LIMITE),
-                  lambda p: aprofundamento_iterativo(p, LIMITE)):
-        r = busca(problema)
-        assert r.encontrou, (
-            f"{busca} não encontrou objetivo em {esqueleto.FORMULACAO}. "
-            "Rode o teste de sanidade do laboratório 03 sobre a formulação: "
-            "objetivo inatingível é formulação vazia.")
+def test_a_inadmissivel_custa_caro_em_algum_lugar():
+    pioras = []
+    for problema in MAIORES:
+        otimo = round(custo_uniforme(problema).custo, 4)
+        com_ela = round(a_estrela(problema, _h_inadmissivel_do(problema)).custo, 4)
+        pioras.append(com_ela > otimo)
+    assert any(pioras), (
+        "a inadmissível devolveu caminho ótimo em tudo — o contraste que o "
+        "laboratório mostra sumiu. Confira as heurísticas do catálogo.")
 
 
-def test_custo_uniforme_nunca_perde_da_largura_em_custo():
-    problema = _problema_da_formulacao()
-    largura = busca_em_largura(problema)
-    uniforme = custo_uniforme(problema)
-    assert uniforme.custo <= largura.custo + 1e-9, (
-        f"custo uniforme devolveu {uniforme.custo} e a largura {largura.custo}. "
-        "Resultado impossível com formulação correta (slide 22: é defeito, "
-        "não resultado — quase sempre custo negativo ou transição que não "
-        "é função).")
+class _APartirDe:
+    """O mesmo problema com outro estado inicial — para medir o custo REAL
+    restante de um estado: roda o custo uniforme a partir dele."""
+
+    def __init__(self, problema, estado_inicial):
+        self._problema = problema
+        self.estado_inicial = estado_inicial
+
+    def acoes(self, estado):
+        return self._problema.acoes(estado)
+
+    def transicao(self, estado, acao):
+        return self._problema.transicao(estado, acao)
+
+    def objetivo(self, estado):
+        return self._problema.objetivo(estado)
+
+    def custo(self, estado, acao, estado_seguinte):
+        return self._problema.custo(estado, acao, estado_seguinte)
 
 
-def test_nenhum_custo_da_tabela_traz_float_sujo():
-    problema = _problema_da_formulacao()
-    for linha_dados in comparar(problema, limite_maximo=LIMITE):
-        texto = str(linha_dados["custo"])
-        assert "999999" not in texto, (
-            f"a tabela imprime {texto} — o arredondamento do comparar() "
-            "deveria ter livrado o float sujo")
+def _estados_rasos(problema, fundura_maxima: int = 2, teto: int = 8) -> list:
+    """Estados do começo da busca, NÃO objetivos — é lá que a inadmissível
+    superestima (no objetivo, toda estimativa honesta ou desonesta zera)."""
+    vistos = {problema.estado_inicial}
+    fila = [(problema.estado_inicial, 0)]
+    achados = []
+    while fila:
+        atual, fundura = fila.pop(0)
+        if fundura > fundura_maxima or len(achados) >= teto:
+            break
+        if not problema.objetivo(atual):
+            achados.append(atual)
+        for acao in problema.acoes(atual):
+            seguinte = problema.transicao(atual, acao)
+            if seguinte not in vistos:
+                vistos.add(seguinte)
+                fila.append((seguinte, fundura + 1))
+    return achados
 
 
-# --- 3. o desafio ------------------------------------------------------------
-
-@pytest.mark.skipif(
-    not esqueleto.USAR_IMPLEMENTACAO_PROPRIA,
-    reason="caminho padrão: as buscas próprias não foram implementadas "
-           "(desafio). Preencha as TODOs do esqueleto.py e troque a "
-           "constante para rodar esta família de testes.")
-@pytest.mark.parametrize("nome_problema", sorted(MAIORES))
-def test_minhas_buscas_batem_com_o_motor(nome_problema):
-    problema = MAIORES[nome_problema]
-    for minha, do_motor in (
-        (esqueleto.minha_busca_em_largura, busca_em_largura),
-        (esqueleto.meu_custo_uniforme, custo_uniforme),
-    ):
-        meu = minha(problema)
-        motor = do_motor(problema)
-        assert round(meu.custo, 4) == round(motor.custo, 4), (
-            f"{nome_problema}: meu custo {meu.custo} ≠ motor {motor.custo}")
-        assert len(meu.caminho) == len(motor.caminho), (
-            f"{nome_problema}: {len(meu.caminho)} ações contra "
-            f"{len(motor.caminho)} do motor — a minha busca não é a mesma")
-
-
-@pytest.mark.skipif(
-    not esqueleto.USAR_IMPLEMENTACAO_PROPRIA,
-    reason="desafio não ativado — ver a família acima.")
-def test_minhas_buscas_batem_na_formulacao_apontada():
-    problema = _problema_da_formulacao()
-    for minha, do_motor in (
-        (esqueleto.minha_busca_em_largura, busca_em_largura),
-        (esqueleto.meu_custo_uniforme, custo_uniforme),
-    ):
-        meu, motor = minha(problema), do_motor(problema)
-        assert meu.encontrou and motor.encontrou
-        assert round(meu.custo, 4) == round(motor.custo, 4)
+def test_a_inadmissivel_superestima_em_algum_estado():
+    exageros = []
+    for problema in PEQUENAS:
+        h = _h_inadmissivel_do(problema)
+        for estado in _estados_rasos(problema):
+            real = custo_uniforme(_APartirDe(problema, estado)).custo
+            exageros.append(h(estado) > real + 1e-9)
+    assert any(exageros), (
+        "a inadmissível não superestimou em nenhum estado da amostra — "
+        "confira as heurísticas do catálogo.")

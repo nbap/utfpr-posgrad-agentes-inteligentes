@@ -204,7 +204,7 @@ Perguntas que guiam o preenchimento:
 * **O estado do sistema** é apenas a foto atual: `(itens checados, pendências abertas)`.
 * **O que NÃO é busca:** calcular o nível de risco e definir quais NRs se aplicam são tarefas de classificação, não de montagem de sequência.
 
-**Medições das buscas não informadas (Laboratório 04):**
+**Medições das buscas (Laboratórios 04 e 05):**
 
 | Busca | Custo | Ações | Nós expandidos | Nós gerados | Prof. máx. | Segundos |
 |---|---:|---:|---:|---:|---:|---:|
@@ -212,6 +212,10 @@ Perguntas que guiam o preenchimento:
 | custo_uniforme | 28.0 | 7 | 201 | 204 | 7 | 0.0004 |
 | profundidade_limitada(limite=32) | 35.0 | 7 | 8 | 7 | 7 | 0.0 |
 | aprofundamento_iterativo(limite=32) | 35.0 | 7 | 260 | 619 | 7 | 0.0012 |
+| gulosa[admissivel] | 28.0 | 7 | 8 | 18 | 7 | 0.0001 |
+| a_estrela[admissivel] | 28.0 | 7 | 117 | 176 | 7 | 0.0005 |
+| gulosa[inadmissivel] | 28.0 | 7 | 8 | 18 | 7 | 0.0001 |
+| a_estrela[inadmissivel] | 28.0 | 7 | 19 | 35 | 7 | 0.0001 |
 
 **Conclusão:** sim, o custo uniforme achou um caminho mais barato que a
 largura: 28 contra 35 minutos, com as mesmas 7 ações. Todo caminho tem 7
@@ -236,3 +240,23 @@ formulação.
 fronteira; nela, `nos_expandidos` conta entradas na recursão, sem
 repetidos. Os 8 nós dela não são comparáveis aos 201 da largura: parte da
 vantagem é diferença de contagem, não eficiência.
+
+**Dominância (Laboratório 05):** entre duas heurísticas admissíveis,
+a que estima mais alto em todo estado é a que domina, e a dominada nunca expande
+menos. A admissível (o esforço base do que falta: itens por checar mais
+pendências abertas) domina a heurística zero do custo uniforme: vale 17
+no estado inicial contra 0, e nunca passa do custo real (28) porque
+ignora as pendências que as checagens futuras vão abrir e o retrabalho
+só aumenta o custo. A evidência: o A* com ela expandiu 117 nós contra 201
+do custo uniforme, com o mesmo custo ótimo de 28. A inadmissível (o dobro
+da admissível) estima mais alto em todo estado e expandiu só 19, mas não
+entra na dominância: tem valor 34 no estado inicial que é acima dos 28, então
+a garantia de ótimo caiu.
+
+As duas gulosas saem idênticas (8 expandidos, custo 28) porque a gulosa
+só usa a ordem dos valores de h e dobrar h não muda a ordem. O 28 delas
+também não é garantido.
+
+Os dois A* acharam caminhos diferentes com o mesmo custo de 28: o da
+admissível deixa o LOTO por último; o da inadmissível bloqueia antes de
+eliminar a energia residual. 
