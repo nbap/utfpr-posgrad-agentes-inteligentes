@@ -134,6 +134,28 @@ Atividade Orientada.
 
     desempenho = ordens com parecer correto / total de ordens do conjunto
 
+**Linha de base (Laboratório 06):** `src/ams/baseline.py`, agente de
+regras baseado em modelo. A condição com estado interno fica, porque o
+ambiente é parcialmente observável (seção 2).
+
+- **Métrica:** acerto do risco — casos em que o risco decidido ("alto" ou
+  "baixo") é igual ao rótulo (alto quando `Machine failure` = 1), sobre o
+  total. Mede só a parte de risco do parecer: NR e LOTO não têm gabarito
+  no AI4I.
+- **Valor:** 23/30 = 76,7%. As 8 máquinas que falharam foram marcadas
+  "alto" (a trava de 90% do Performance é atendida).
+- **Conjunto:** `data/casos-baseline.csv` — 30 registros da amostra do
+  AI4I 2020: 8 com falha e 22 sem; 12 fáceis, 16 difíceis e 2 atípicos.
+
+**Onde erra, e por quê:** os 7 erros são todos alarmes falsos em
+ferramentas com desgaste ≥ 200 min que não falharam, disparados pela
+condição com estado interno depois que o agente viu uma falha em fim de
+vida. A condição existe porque a falha por desgaste (TWF) acontece em
+algum ponto entre 200 e 240 min sem sinal na leitura — sem ela o agente
+acerta 27/30, mas perde as 3 falhas por desgaste e a trava cai para 62,5%
+—, então o que falta não é outra regra, é o histórico de troca daquela
+ferramenta, que o agente não observa.
+
 [métrica primária e duas secundárias, cada uma com: como se
 calcula, sobre qual conjunto, qual o limiar de sucesso e o
 valor de hoje]
