@@ -196,8 +196,28 @@ Perguntas que guiam o preenchimento:
 **Quando se preenche:** na Atividade Orientada — o pacote `D2-07` traz o
 modelo da tabela e dois exemplos preenchidos.
 
-[tabela: nome · entrada · saída · é reversível? · risco se
-errar — ações de leitura e de escrita]
+| Ação | Entrada | Saída | É reversível? | Risco se errar |
+|---|---|---|---|---|
+| Consultar a ordem de serviço | Número da OS (ex.: OS-2026-0012) | Máquina, tipo L/M/H, leitura atual dos sensores, descrição da intervenção | Sim — só lê | Leitura digitada errada (0 K, torque negativo) entra como real e o parecer sai sobre dado falso |
+| Consultar o histórico de falhas | Tipo de produto + leitura atual | Falhas parecidas e seus modos (TWF, HDF, PWF, OSF, RNF) | Sim — só lê | O histórico não separa a máquina específica: uma máquina cronicamente pior aparece como média e o risco sai subestimado |
+| Buscar o trecho da norma | Descrição da intervenção | Trechos aplicáveis da NR-10, NR-12 e NR-35 | Sim — só lê | Trecho errado deixa uma NR de fora (ex.: NR-10 quando a descrição não menciona o painel elétrico) |
+| Classificar o risco de falha | Leitura + histórico | Baixo / médio / alto, com justificativa | Sim — só computa; não tem efeito até ser comunicado | "Baixo" numa máquina que vai falhar faz o técnico intervir sem precaução; "alto" à toa para a máquina sem necessidade e gasta a confiança no alerta |
+| Indicar as NRs e a exigência de LOTO | Descrição + trechos das normas | Lista de NRs + LOTO sim/não | Sim — só computa | LOTO "não" quando era "sim": o técnico trabalha com energia presente — risco de acidente |
+| **Anexar o parecer à ordem** | Parecer validado (risco, NRs, LOTO, justificativa) | Parecer registrado na OS e visível ao técnico | Parcialmente — o registro pode ser corrigido, mas o técnico pode já ter agido sobre ele | Comunicação: o técnico confia num "sem LOTO" errado e começa o serviço; o parecer fica no histórico que o supervisor audita |
+| Pedir dados ao técnico | Ordem + o que falta (ex.: "há painel energizado?", "qual a altura?") | Pergunta enviada e ordem devolvida | Parcialmente — a pergunta não se recolhe, mas a ordem volta à fila | Atrasa a manutenção; perguntar demais faz o técnico ignorar as perguntas |
+| Escalar ao supervisor de segurança | Ordem + parecer + motivo (confiança baixa, risco alto, leitura inconsistente) | Caso na fila do supervisor | Sim — o caso volta para o agente | Fadiga de escalonamento se escalar tudo; escalar sem o parecer duplica o trabalho do supervisor |
+| **Liberar a intervenção** | Parecer + confirmação do técnico de que o LOTO foi aplicado | Ordem liberada para execução | Não — o técnico começa a mexer na máquina | Escrita, risco alto: liberar com risco alto ou sem LOTO aplicado expõe o técnico a energia presente — acidente |
+
+**Quem executa cada ação:** as três consultas, as duas classificações,
+pedir dados e escalar ficam com o agente sozinho. Anexar o parecer também,
+exceto quando o risco é "alto" ou a confiança é baixa: aí o parecer passa
+antes pelo supervisor (escalar). Liberar a intervenção é só humano — o
+técnico, com o supervisor quando o caso foi escalado.
+
+**O que o agente JAMAIS executa sozinho:** liberar a intervenção. O efeito
+não se desfaz — o técnico já está com a mão na máquina —, e um erro ali é
+acidente, não retrabalho. Pela mesma razão, o agente nunca dispensa o
+LOTO que a norma exige.
 
 ---
 
