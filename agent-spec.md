@@ -110,8 +110,10 @@ Perguntas que guiam o preenchimento:
 -->
 **Quando se preenche:** no sábado (encontro 2, manhã).
 
-[o tipo mais simples que resolve, justificado pela dimensão
-do ambiente que o obriga]
+O agente é baseado em modelo (guarda estado interno), com uma parte baseada em objetivos. Não dá pra usar um agente reativo simples aqui porque o ambiente é parcialmente observável: a falha por desgaste (TWF) não aparece na leitura isolada do momento — tanto que o teste sem memória (seção 4) deixou passar as 3 falhas desse tipo. A parte baseada em objetivos entra só na seção 7, onde o agente usa busca para decidir a ordem da checagem de segurança antes de liberar a manutenção. Já o nível de risco, as NRs e o LOTO continuam sendo resolvidos por classificação simples, sem precisar de busca.
+
+*O que mudou e por quê (N2):* seção preenchida no fechamento da N2, com a
+evidência da linha de base do Laboratório 06.
 
 ---
 
@@ -156,10 +158,13 @@ acerta 27/30, mas perde as 3 falhas por desgaste e a trava cai para 62,5%
 —, então o que falta não é outra regra, é o histórico de troca daquela
 ferramenta, que o agente não observa.
 
-[métrica primária e duas secundárias, cada uma com: como se
-calcula, sobre qual conjunto, qual o limiar de sucesso e o
-valor de hoje]
+**Métrica primária — Parecer correto:** É a proporção de ordens em que o risco, as NRs e o LOTO batem com o gabarito do supervisor, testada nas 30 ordens do arquivo `data/casos-baseline.csv`. A meta de sucesso é passar de 80%. Por enquanto, só a parte de risco está sendo medida (bateu 76,7% no baseline), já que ainda não temos o gabarito para NRs e LOTO.
 
+**Métrica secundária — Cobertura de falhas:** Mede quantas das máquinas que realmente falharam foram classificadas como risco "alto" (são 8 falhas no total). A meta é no mínimo 90%, funcionando como uma trava de segurança. Hoje está em 100% (8/8). Essa métrica serve pra barrar um agente "preguiçoso" que chute "baixo" pra tudo — ele acertaria 73% do total (22/30), mas deixaria todas as falhas reais passarem.
+
+**Métrica secundária — Alarme falso:** Mede o oposto: quantas máquinas saudáveis foram marcadas erroneamente como risco "alto" (das 22 sem falha no conjunto). A meta é ficar abaixo de 10%, mas hoje está bem alta, em 31,8% (7/22). Ela existe pra evitar o outro extremo: o agente que chuta "alto" pra tudo só pra garantir 100% na cobertura de falhas.
+
+*O que mudou e por quê (N2):* Substituímos aquele "hoje: 0%" genérico do Lab-01 pelos resultados reais medidos no baseline. Além disso, adicionamos as duas métricas secundárias justamente para fechar as brechas da métrica primária e impedir que o agente "trapaceie" chutando sempre o mesmo resultado.
 ---
 
 ## 5. Restrições
@@ -175,9 +180,12 @@ Perguntas que guiam o preenchimento:
 -->
 **Quando se preenche:** na Atividade Orientada.
 
-[latência aceitável, custo aceitável, o que o agente jamais
-pode fazer sozinho, e a troca qualidade × custo que você
-aceita — com um exemplo numérico]
+- **Latência:** O parecer precisa sair em no máximo 1 minuto após a abertura da ordem. Mais que isso, o técnico já começou a mexer na máquina e a análise perde a utilidade.
+- **Custo:** Limite de R$ 0,10 por ordem gasto com chamadas de modelo (API).
+- **O que o agente nunca faz sozinho:** Liberar o início da manutenção por conta própria ou dispensar o uso de LOTO quando a norma exige (seção 6).
+- **Trade-off aceitável:** Vale a pena errar até 1 caso a mais (em 30) se isso cortar o custo pela metade, desde que não viole a trava de cobertura de falhas. Na prática: acertar 24/30 gastando R$ 0,05 por ordem é melhor do que acertar 25/30 gastando R$ 0,10. Porém, fazer 25/30 deixando passar uma falha real (caindo para 7/8 na cobertura, ou 87,5%) é inaceitável, não importa o quão barato seja.
+
+*O que mudou e por quê (N2):* Esta seção foi definida e preenchida agora no fechamento da entrega N2.
 
 ---
 
